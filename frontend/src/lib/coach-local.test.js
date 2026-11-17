@@ -58,6 +58,38 @@ describe('the Coach on a phone with its own key', () => {
     wire.calls = []; wire.answer = chat(JSON.stringify(review)); secret.key = 'sk-test-1'
   })
 
+  it('can call every plain HTTPS provider, DeepSeek included', () => {
+    return import('../../../api/coach/core/providers.js').then(({ HTTP_PROVIDER_IDS }) => {
+      expect(Object.keys(local.ADAPTERS).sort()).toEqual([...HTTP_PROVIDER_IDS].sort())
+    })
+  })
+
+  it('a DeepSeek question does not think, and a DeepSeek review may, at low effort', async () => {
+    const ask = { coach_contract: 1, answer: 'Rest tomorrow.' }
+    device.data = { mode: 'byok', provider: 'deepseek', model: '', baseUrl: null }
+    wire.answer = chat(JSON.stringify(ask))
+    await local.localAsk(state(), 'Should I rest?')
+    let s = await settle()
+    expect(s.lastError).toBeNull()
+    expect(wire.calls[0].url).toBe('https://api.deepseek.com/v1/chat/completions')
+    expect(wire.calls[0].init.headers.authorization).toBe('Bearer sk-test-1')
+    expect(wire.calls[0].body.model).toBe('deepseek-flash')
+    expect(wire.calls[0].body.thinking).toEqual({ type: 'disabled' })
+    expect(wire.calls[0].body.reasoning_effort).toBeUndefined()
+    expect(JSON.stringify(device.data)).not.toContain('sk-test-1')
+
+    local._resetLocal(); wire.calls = []
+    await saveCoachDevice({ pending: null, provider: 'deepseek', model: 'deepseek-v4-pro' })
+    wire.answer = chat(JSON.stringify(review))
+    await local.localReview(state())
+    s = await settle()
+    expect(s.pending?.kind).toBe('review')
+    expect(wire.calls[0].body.model).toBe('deepseek-v4-pro')
+    expect(wire.calls[0].body.thinking).toEqual({ type: 'enabled' })
+    expect(wire.calls[0].body.reasoning_effort).toBe('low')
+    expect(wire.calls[0].body.response_format).toEqual({ type: 'json_object' })
+  })
+
   it('runs a review through the real pipeline and produces a proposal the apply engine accepts', async () => {
     const S = state()
     await local.localReview(S, 'shoulder')

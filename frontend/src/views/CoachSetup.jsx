@@ -3,7 +3,7 @@
 // Two answers. "Use my self-hosted openGym" hands the whole thing to the paired server — the
 // same Coach the web app has, with whatever provider its admin configured; the phone only has
 // to be paired. "Bring my own API key" runs the pipeline on the phone against Anthropic,
-// OpenAI, Gemini or an OpenAI-compatible endpoint, with a key that stays in secure storage.
+// OpenAI, Gemini, DeepSeek or an OpenAI-compatible endpoint, with a key that stays in secure storage.
 //
 // The promise this screen keeps: nothing AI-shaped is loaded until a mode is chosen. Its only
 // imports from the Coach core are the provider table and the five category names — the
@@ -38,7 +38,7 @@ const STEPS = () => [t('Loading the exercise catalogue…'), t('Checking the end
 // (coach-local.js). The web app has no such screen: in a browser the Coach always runs on the
 // server, which reaches http:// on its own network (an https page could not call http:// itself).
 // The big cards: the ways most people get going. `local` is the compatible endpoint, found on the
-// network; MiniMax and a hand-typed compatible endpoint stay one tap further, as chips.
+// network; MiniMax, DeepSeek and a hand-typed compatible endpoint stay one tap further, as chips.
 const CARDS = [
   { id: 'openrouter', provider: 'openrouter', icon: 'sparkles', tint: 'var(--indigo)', line: () => t('One sign-in for Claude, GPT, Gemini and more') },
   { id: 'anthropic', provider: 'anthropic', icon: 'key', tint: 'var(--orange)', line: () => t('Claude, with an API key') },
@@ -165,7 +165,11 @@ export default function CoachSetup() {
     const before = key
     setKey(v)
     const other = providerOfKey(v)
-    if (other && other !== provider && HTTP_PROVIDERS[other]) {
+    // DeepSeek keys start with sk-, which is also OpenAI's shape. A 32-hex key is recognised
+    // as DeepSeek. Any other sk- key stays on DeepSeek when that chip is already picked,
+    // instead of bouncing over to OpenAI.
+    const keepDeepSeek = provider === 'deepseek' && other === 'openai'
+    if (other && other !== provider && HTTP_PROVIDERS[other] && !keepDeepSeek) {
       setProvider(other)
       setCard(cardFor(other))
       toast(t('That looks like a {0} key, so I switched to {0}.', HTTP_PROVIDERS[other].label))
@@ -173,7 +177,7 @@ export default function CoachSetup() {
     }
     // A whole key pasted in one go, of this provider's shape: test it straight away, so the
     // one-minute Gemini flow ends on "It works!" without another tap.
-    if (other === provider && v.trim().length >= 30 && v.length - before.length > 20 && !busy) prepare(v)
+    if ((other === provider || keepDeepSeek) && v.trim().length >= 30 && v.length - before.length > 20 && !busy) prepare(v)
   }
   const pasteKey = async () => {
     let v = ''

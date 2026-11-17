@@ -177,6 +177,25 @@ describe('CoachSetup — bringing your own key', () => {
     expect(mocks.toast).toHaveBeenCalledWith(expect.stringMatching(/OpenRouter key/))
   })
 
+  it('a 32-hex sk- key is DeepSeek, even from another provider', async () => {
+    await mount(); await openByok()
+    await typeIn(field('password'), 'sk-' + 'ab'.repeat(16))
+    expect(chip('DeepSeek API').classList.contains('on')).toBe(true)
+    expect(mocks.toast).toHaveBeenCalledWith(expect.stringMatching(/DeepSeek API key/))
+  })
+
+  it('an sk- key that is not DeepSeek-shaped stays on DeepSeek once that chip is picked', async () => {
+    await mount(); await openByok()
+    await click(chip('DeepSeek API'))
+    mocks.toast.mockClear()
+    await typeIn(field('password'), 'sk-' + 'B'.repeat(40))
+    await settle()
+    expect(chip('DeepSeek API').classList.contains('on')).toBe(true)
+    expect(chip('OpenAI API').classList.contains('on')).toBe(false)
+    expect(mocks.toast).not.toHaveBeenCalled()
+    expect(localModels).toHaveBeenCalledWith({ provider: 'deepseek', baseUrl: null }, 'sk-' + 'B'.repeat(40))
+  })
+
   it('OpenRouter offers its sign-in and a link to make a key', async () => {
     await mount(); await openByok()
     await click(chip('OpenRouter'))

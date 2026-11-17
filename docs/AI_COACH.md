@@ -20,12 +20,13 @@ rest of this document applies to you.
 | **OpenAI API** | plain HTTPS to `api.openai.com` | an API key | default |
 | **Google Gemini** | plain HTTPS to `generativelanguage.googleapis.com` | an API key | default |
 | **MiniMax API** | plain HTTPS to `api.minimax.io` | an API key | default |
+| **DeepSeek API** | plain HTTPS to `api.deepseek.com` | an API key | default |
 | **OpenAI-compatible endpoint** | plain HTTPS to a URL you give it — Ollama, LM Studio, vLLM, OpenRouter, a gateway of your own | an API key, optional | default |
 | **Claude (Anthropic)** | the Claude Agent SDK, inside the container | a `claude setup-token` | `coach` |
 | **Codex (OpenAI)** | the Codex CLI, inside the container | Codex's own device sign-in | `coach` |
 | **ChatGPT plan (preview)** | plain HTTPS to `api.openai.com`, `COACH_CHATGPT_PLAN=on` | Sign in with ChatGPT | default |
 
-The first four spawn nothing. A job is one HTTPS request from the api process, so there is no
+The first five spawn nothing. A job is one HTTPS request from the api process, so there is no
 child process to drop privileges on, no runtime to carry in the image, and nothing to install:
 **they work on the image every instance already has.** The `coach` image, the unprivileged
 `coach` user and the `./coach-auth` mount described further down exist for the last two only.
@@ -41,6 +42,16 @@ portal shows), the key is the resource's API key, and the model is your deployme
 OpenAI's reasoning models (o1, o3, o4, gpt-5) and Azure get `max_completion_tokens` instead of
 `max_tokens`; an endpoint that wants the other one says so, and the Coach switches once and
 remembers it (#869).
+
+DeepSeek is a provider of its own, not only something you point the compatible endpoint at.
+The base URL is `https://api.deepseek.com` and the key comes from
+[platform.deepseek.com](https://platform.deepseek.com/api_keys). **List models** fills the
+picker; `deepseek-flash` is only the starting model, because DeepSeek retires names
+(`deepseek-chat` and `deepseek-reasoner` are already gone). DeepSeek thinks unless the request
+says not to, and that thinking counts against the output limit, so a question, a debrief or
+an in-workout change is sent with thinking off. Designing or revising a plan may think, at
+low effort. Pick `deepseek-v4-pro` from the list when you want the stronger model. The Coach
+asks DeepSeek for a JSON object; DeepSeek does not take a JSON schema.
 
 ## Turning it on
 
@@ -59,7 +70,7 @@ dashboard. If **Settings → Account → Admin dashboard** isn't there for you, 
    environment) and reload the app. Details: [SELF_HOSTING.md §4](SELF_HOSTING.md#4-multiple-users).
 2. **Connect a provider.** **Settings → Account → Admin dashboard**, the **AI Coach** card:
    **Set up the Coach**, pick a provider, paste its API key (or the endpoint, for a local
-   model), **Test the Coach**. Anthropic, OpenAI, Gemini and OpenAI-compatible endpoints work on
+   model), **Test the Coach**. Anthropic, OpenAI, Gemini, MiniMax, DeepSeek and OpenAI-compatible endpoints work on
    the default image; leave `API_TARGET` alone unless you want the Claude Agent SDK or Codex
    (see [below](#with-a-runtime-in-the-container-claude-agent-sdk-codex-cli)).
 3. **Check the switch at the top of the card is on**, and that `COACH_DISABLED` isn't set.
@@ -158,7 +169,7 @@ should leave it off.
 `lmstudio` and `llama` compose services, the Docker host, this machine) on ports 11434, 1234 and
 8080 for their model list, and offers what answers.
 
-### With an API key (Anthropic, OpenAI, Gemini, compatible)
+### With an API key (Anthropic, OpenAI, Gemini, MiniMax, DeepSeek, compatible)
 
 **1. Get a key** from the provider's own console. For a compatible endpoint, get the URL it
 answers on instead, and a key only if it wants one.
@@ -414,7 +425,7 @@ Off by default, twice: the admin allows it (Advanced → Web research) and each 
 under **What the Coach sees**; on the phone with your own key only the second. Then a chat question
 may use the provider's own search tool: Anthropic's web search server tool (at most three searches
 an answer), OpenAI's `web_search` tool through the Responses API, Gemini's Grounding with Google
-Search, OpenRouter's web plugin. Compatible endpoints and MiniMax have none. The pages it used are
+Search, OpenRouter's web plugin. Compatible endpoints, MiniMax and DeepSeek have none. The pages it used are
 shown under the answer as links. Most providers bill searches on top of tokens.
 
 ### Streaming and time
@@ -453,7 +464,7 @@ to be. The Coach spends a real provider account, and there are two shapes:
 
 In instance mode it depends on what kind of credential was pasted:
 
-- **An API key** (Anthropic, OpenAI, Gemini, an OpenAI-compatible endpoint) is shared by every
+- **An API key** (Anthropic, OpenAI, Gemini, MiniMax, DeepSeek, an OpenAI-compatible endpoint) is shared by every
   profile on the instance. It is metered, issued for exactly this kind of use, and the daily
   limits in the admin card are what bound what it can spend. This is the shape a household or a
   small gym wants.
@@ -703,7 +714,7 @@ The App-Store build has no server of its own, so the Coach there is a choice mad
   provider the admin configured, under the rules above, and nothing on the phone changes. The
   one thing the server cannot do is push to the app, so a suggestion its automatic review left
   is announced by the app itself, once, when it next comes to the foreground.
-- **Bring my own API key.** The phone calls Anthropic, OpenAI, Gemini or a compatible endpoint
+- **Bring my own API key.** The phone calls Anthropic, OpenAI, Gemini, DeepSeek or a compatible endpoint
   directly, with a key you paste. It runs the same payload allowlist, the same validator and
   the same single repair round as the server, in the app. The key is kept in the platform's
   secure storage — Keychain on iOS, the Keystore-backed store on Android — and never in the

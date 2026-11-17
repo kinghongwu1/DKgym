@@ -68,6 +68,12 @@ test('the admin card is told which providers hold a key, and switching never dro
     assert.equal(byId.claude.setupToken, true);
     assert.equal(byId.openai.http, true);
     assert.equal(byId.openai.defaultModel, 'gpt-5.6');
+    assert.equal(byId.deepseek.label, 'DeepSeek API');
+    assert.equal(byId.deepseek.http, true);
+    assert.equal(byId.deepseek.apiKey, true);
+    assert.equal(byId.deepseek.baseUrl, false, 'the DeepSeek base is fixed');
+    assert.equal(byId.deepseek.defaultModel, 'deepseek-flash');
+    assert.equal(byId.deepseek.keyUrl, 'https://platform.deepseek.com/api_keys');
     assert.equal(r.body.auth.state, 'connected');
     assert.equal(r.body.auth.type, 'apikey');
     assert.equal(r.body.auth.account, 'lan');
