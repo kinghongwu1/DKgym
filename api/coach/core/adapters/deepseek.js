@@ -6,16 +6,19 @@
  * so nothing here keeps a list of aliases. defaultModel is only where a fresh setup starts.
  *
  * Thinking is on unless the request says otherwise, at effort "high", and that chain of
- * thought is counted against max_tokens. A short job (ask, debrief, adapt, the admin test
- * ping) sends thinking off. create (including a refine) and review may think, at low
- * effort, so a plan can be reasoned about without the high default eating the answer.
- * response_format accepts text or json_object, not a JSON schema. Temperature is ignored
- * while thinking and does not error, so 0 is always sent.
+ * thought is counted against max_tokens. A plan that thinks inside a 16k ceiling comes
+ * back as "cut off at the output limit" with the JSON still unwritten. Every Coach job
+ * therefore sends thinking off, and the output ceiling is at least OUTPUT_FLOOR so a
+ * phone that still has the old 16000 dial cannot truncate the answer. The final JSON is
+ * read from message content; reasoning_content is not the answer.
+ * response_format accepts text or json_object, not a JSON schema.
  */
 import { httpAdapter } from './http.js';
 import { chatCompletionsSpec } from './openai.js';
 
-const PLAN_KINDS = new Set(['create', 'review']);
+// DeepSeek allows up to 384k output tokens. 65536 is this app's own ceiling, and enough
+// for a week plan once thinking is not spending the budget.
+export const DEEPSEEK_OUTPUT_FLOOR = 65536;
 
 const base = chatCompletionsSpec('deepseek', { maxTokensField: 'max_tokens', temperature: 0 });
 
@@ -26,10 +29,11 @@ export const deepseekSpec = {
     // DeepSeek's enum is text | json_object. A json_schema body is a 400, and the
     // compatibility ladder would only find that out after a wasted call.
     if (body.response_format && body.response_format.type === 'json_schema') body.response_format = { type: 'json_object' };
-    const thinking = PLAN_KINDS.has(at.kind)
-      ? { thinking: { type: 'enabled' }, reasoning_effort: 'low' }
-      : { thinking: { type: 'disabled' } };
-    return { ...body, ...thinking };
+    const field = 'max_tokens' in body ? 'max_tokens' : 'max_completion_tokens' in body ? 'max_completion_tokens' : 'max_tokens';
+    body[field] = Math.max(Number(body[field]) || 0, DEEPSEEK_OUTPUT_FLOOR);
+    // Do not send reasoning_effort: with thinking disabled it must not turn thinking back on.
+    const { reasoning_effort: _effort, ...rest } = body;
+    return { ...rest, thinking: { type: 'disabled' } };
   }
 };
 

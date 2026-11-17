@@ -4,6 +4,7 @@ import { tempData } from './helpers.mjs';
 
 tempData();
 const deepseek = (await import('../coach/core/adapters/deepseek.js')).default;
+const { DEEPSEEK_OUTPUT_FLOOR } = await import('../coach/core/adapters/deepseek.js');
 const { HTTP_PROVIDERS, providerOfKey, priceTier, baseUrlFor } = await import('../coach/core/providers.js');
 const { attemptOnce } = await import('../coach/core/pipeline.js');
 
@@ -62,30 +63,23 @@ test('DeepSeek calls its default model with the key, and does not think when no 
   assert.ok(!c.url.includes('test-key'));
 });
 
-test('a plan job may think at low effort; a short job does not', async () => {
-  for (const kind of ['create', 'review']) {
+test('every job, including a plan, is sent with thinking off and a high output floor', async () => {
+  for (const kind of ['create', 'review', 'ask', 'debrief', 'adapt', null]) {
     const f = fakeFetch([chat(ANSWER)]);
-    await deepseek.invoke({ cfg: {}, prompt: 'P', env, model: 'deepseek-v4-pro', kind, schema: SCHEMA, fetch: f });
+    await deepseek.invoke({ cfg: {}, prompt: 'P', env, model: 'deepseek-v4-pro', kind, schema: SCHEMA, maxTokens: 16000, fetch: f });
     assert.equal(f.calls[0].body.model, 'deepseek-v4-pro');
-    assert.deepEqual(f.calls[0].body.thinking, { type: 'enabled' });
-    assert.equal(f.calls[0].body.reasoning_effort, 'low');
-    assert.deepEqual(f.calls[0].body.response_format, { type: 'json_object' });
-  }
-  // ask, debrief and adapt are the short jobs. A refine is not its own kind: the
-  // pipeline sends it as create, so it thinks with the plan (asserted below).
-  for (const kind of ['ask', 'debrief', 'adapt']) {
-    const f = fakeFetch([chat(ANSWER)]);
-    await deepseek.invoke({ cfg: {}, prompt: 'P', env, kind, fetch: f });
     assert.deepEqual(f.calls[0].body.thinking, { type: 'disabled' });
     assert.equal('reasoning_effort' in f.calls[0].body, false);
+    assert.equal(f.calls[0].body.max_tokens, DEEPSEEK_OUTPUT_FLOOR);
+    assert.deepEqual(f.calls[0].body.response_format, { type: 'json_object' });
   }
 });
 
-test('a refine is sent as a create job, so it may think', async () => {
+test('a refine is a create job and still does not think', async () => {
   const f = fakeFetch([chat(ANSWER)]);
-  await attemptOnce({ adapter: deepseek, cfg: {}, kind: 'create', payload: { refine: 'swap the press' }, invokeOpts: { env, fetch: f } });
-  assert.equal(f.calls[0].body.thinking.type, 'enabled');
-  assert.equal(f.calls[0].body.reasoning_effort, 'low');
+  await attemptOnce({ adapter: deepseek, cfg: {}, kind: 'create', payload: { refine: 'swap the press' }, invokeOpts: { env, fetch: f, maxTokens: 16000 } });
+  assert.deepEqual(f.calls[0].body.thinking, { type: 'disabled' });
+  assert.equal(f.calls[0].body.max_tokens, DEEPSEEK_OUTPUT_FLOOR);
 });
 
 test('the pipeline is what tells DeepSeek which job this is', async () => {
@@ -94,12 +88,14 @@ test('the pipeline is what tells DeepSeek which job this is', async () => {
   assert.equal(a.ok, true, JSON.stringify(a));
   assert.equal(ask.calls.length, 1);
   assert.deepEqual(ask.calls[0].body.thinking, { type: 'disabled' });
+  assert.ok(ask.calls[0].body.max_tokens >= DEEPSEEK_OUTPUT_FLOOR);
 
   const review = fakeFetch([chat(ANSWER)]);
   const r = await attemptOnce({ adapter: deepseek, cfg: {}, kind: 'review', payload: { plan: { routines: [], week: {} } }, invokeOpts: { env, fetch: review } });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(review.calls[0].body.thinking, { type: 'enabled' });
-  assert.equal(review.calls[0].body.reasoning_effort, 'low');
+  assert.deepEqual(review.calls[0].body.thinking, { type: 'disabled' });
+  assert.equal('reasoning_effort' in review.calls[0].body, false);
+  assert.ok(review.calls[0].body.max_tokens >= DEEPSEEK_OUTPUT_FLOOR);
   assert.deepEqual(review.calls[0].body.response_format, { type: 'json_object' });
 });
 

@@ -96,6 +96,10 @@ export const HTTP_PROVIDERS = Object.freeze({
 
 export const HTTP_PROVIDER_IDS = Object.freeze(Object.keys(HTTP_PROVIDERS));
 
+/* What Settings and the phone's own-key screen may offer. The other rows stay in
+ * HTTP_PROVIDERS so the adapters and the engine tests can still load; they are not choices. */
+export const OFFERED_PROVIDER_IDS = Object.freeze(['deepseek']);
+
 /** The provider a pasted key belongs to, by its shape, or null. Only a hint for the setup screen:
  *  the Test button is what proves a key. */
 export function providerOfKey(raw) {
