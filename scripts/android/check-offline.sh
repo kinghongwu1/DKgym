@@ -54,8 +54,8 @@ if [ -n "$apk" ] && [ -f "$apk" ]; then
   if grep -qE 'com\.garmin\.android\.connectiq' <<<"$manifest"; then
     echo "$apk: the manifest names Garmin's Connect IQ SDK"; fail=1
   fi
-  if ! grep -q 'ch.duartesantos.opengym.offline' <<<"$manifest"; then
-    echo "$apk: not the openGym Offline package (ch.duartesantos.opengym.offline)"; fail=1
+  if ! grep -q 'dev.fork.opengym.deepseek.offline' <<<"$manifest"; then
+    echo "$apk: not the openGym Offline package (dev.fork.opengym.deepseek.offline)"; fail=1
   fi
   [ "$fail" = 0 ] && echo "$apk: no INTERNET, no network state, no installer, no Play services, no Garmin"
 elif [ -n "${CHECK_OFFLINE_SKIP_GRADLE:-}" ]; then

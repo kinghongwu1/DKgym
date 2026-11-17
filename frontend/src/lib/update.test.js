@@ -43,7 +43,7 @@ describe('checkForUpdate', () => {
   it('asks GitHub for the latest published release (never a draft or a beta)', async () => {
     mockFetch({ tag_name: 'v' + __APP_VERSION__, assets: [] })
     await checkForUpdate()
-    expect(globalThis.fetch.mock.calls[0][0]).toBe('https://api.github.com/repos/DuarteSantos8/openGym/releases/latest')
+    expect(globalThis.fetch.mock.calls[0][0]).toBe('https://api.github.com/repos/kinghongwu1/DKgym/releases/latest')
   })
 
   it('reports no update when the latest release matches the current version', async () => {
@@ -273,6 +273,13 @@ describe('pickApk: Standard and HD APKs', () => {
 
   it('names that only contain the letters hd are not HD', () => {
     expect(pickApk([a('openGym-shdw-1.4.2.apk')], 'standard').apk.name).toBe('openGym-shdw-1.4.2.apk')
+  })
+
+  it('this fork\'s DKgym APK is the Standard build, with the checksum named after it', () => {
+    const { apk, hash } = pickApk([a('DKgym-1.4.6.apk'), a('DKgym-1.4.6.apk.sha256')], 'standard')
+    expect(apkKind('DKgym-1.4.6.apk')).toBe('standard')
+    expect(apk.name).toBe('DKgym-1.4.6.apk')
+    expect(hash.name).toBe('DKgym-1.4.6.apk.sha256')
   })
 
   it('a checksum that belongs to another APK is not used', () => {

@@ -4,6 +4,12 @@ Newest first. Each release is a `## vX.Y.Z (YYYY-MM-DD)` section, and the releas
 GitHub and GitLab are that section, word for word. New work goes under `## Unreleased` until the
 tag. Write it for the people using the app: what changed for them, short, no em dashes.
 
+## v1.4.6 (2026-11-17)
+
+**Android app for this fork**
+- Exercise pictures and animations are in the app again: the 180 px Gym visual stills and clips that already ship with the project.
+- The signed APK is on this repository's GitHub Releases, named DKgym-1.4.6.apk. On the phone the app is called openGym (DeepSeek). It installs over the previous 1.4.5 sideload.
+
 ## v1.4.5 (2026-11-14)
 
 **Apple Watch, redesigned and in step with the phone**

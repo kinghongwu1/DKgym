@@ -1,7 +1,7 @@
 # Before anything is published for a version: every place that carries the version agrees with
 # the tag, and CHANGELOG.md has its section (scripts/ci/release-check.mjs). Runs on the tag push,
 # i.e. before the GitHub release is published from it, so a mismatch shows up while it is still
-# cheap to re-tag. docker-publish.yml runs the same check before it pushes release images.
+# cheap to re-tag. This fork does not publish container images.
 name: Release check
 
 on:

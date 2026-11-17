@@ -43,14 +43,14 @@ describe('the home network', () => {
 })
 
 describe('every request from the phone', () => {
-  it('goes out to the home network over http, and never to the internet', async () => {
+  it('does not call an OpenAI-compatible endpoint: this fork talks to DeepSeek only', async () => {
     calls.length = 0
     const lan = await local.localModels({ provider: 'compatible', baseUrl: 'http://192.168.1.20:8080' }, null)
-    expect(lan.ok).toBe(true)
-    expect(calls).toEqual(['http://192.168.1.20:8080/v1/models'])
+    expect(lan.ok).toBe(false)
+    expect(lan.error).toMatch(/unknown provider/)
     const net = await local.localModels({ provider: 'compatible', baseUrl: 'http://llm.example.com' }, null)
     expect(net.ok).toBe(false)
-    expect(net.error).toMatch(/home network/)
-    expect(calls).toHaveLength(1)
+    expect(calls).toEqual([])
+    expect(Object.keys(local.ADAPTERS)).toEqual(['deepseek'])
   })
 })

@@ -27,6 +27,7 @@ describe('mergeBodyComp', () => {
       { kind: 'bmr', t: T, v: 1780, id: 'e' },
       { kind: 'fat', t: T, v: 90, id: 'f' },
       { kind: 'fat', t: T + 1, v: 17, id: 'g', origin: 'ch.duartesantos.opengym' },
+      { kind: 'fat', t: T + 2, v: 16, id: 'g2', origin: 'dev.fork.opengym.deepseek' },
       { kind: 'height', t: T, v: 180, id: 'h' },
     ])
     expect(got.fat).toEqual([{ t: T - DAY, v: 18.6, id: 'b' }, { t: T, v: 18.24, id: 'a' }])

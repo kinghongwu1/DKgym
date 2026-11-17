@@ -1,0 +1,165 @@
+# Signed Standard sideload APK for this fork.
+#
+# The phone bundle is `npm run build:mobile`: VITE_MOBILE=1, the repository's 180 px
+# Gym visual stills and clips from catalogue/media, then cap sync. No private media
+# directory and nothing larger than 180 px. The APK is signed with the existing
+# sideload key (repo secrets) and uploaded to this repository's GitHub Release.
+#
+# Secrets are read into the signer only. This file never prints them, and the
+# keystore is deleted before the job ends.
+
+name: Android release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 26
+  # Empty on purpose: stage-media then copies catalogue/media, not a private folder.
+  APP_MEDIA_DIR: ''
+  VITE_CLIP_EXT: ''
+  VITE_APK_VARIANT: standard
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          add-job-summary: on-failure
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Phone bundle with the repository's 180 px media
+        working-directory: frontend
+        run: npm run build:mobile
+
+      - name: Standard sideload release APK (unsigned)
+        working-directory: frontend/android
+        run: ./gradlew --no-daemon assembleSideloadRelease
+
+      - name: Sign, align, and name the APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          VER=$(sed -n 's/.*versionName "\(.*\)"/\1/p' frontend/android/app/build.gradle)
+          PKG=$(node -p "require('./frontend/package.json').version")
+          test "$VER" = "$PKG"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VER" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $VER"
+            exit 1
+          fi
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(echo frontend/android/app/build/outputs/apk/sideload/release/*-unsigned.apk)
+          test -f "$UNSIGNED"
+          mkdir -p dist
+          KS="${RUNNER_TEMP}/release.jks"
+          ALIGNED="${RUNNER_TEMP}/aligned.apk"
+          OUT="dist/DKgym-${VER}.apk"
+          trap 'rm -f "$KS" "$ALIGNED"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
+          "$BT/apksigner" sign \
+            --ks "$KS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --v1-signing-enabled false \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$OUT" \
+            "$ALIGNED"
+          rm -f "$KS" "$ALIGNED"
+          "$BT/zipalign" -c -p 4 "$OUT"
+          CERTS=$("$BT/apksigner" verify --min-sdk-version 24 --print-certs "$OUT")
+          printf '%s\n' "$CERTS"
+          grep -q '4224d38abb5410c8a92fc3ef7a7770df38456aa219be36684d402269cfd3b344' <<<"$CERTS"
+          SCHEME=$("$BT/apksigner" verify --verbose --min-sdk-version 24 "$OUT")
+          grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' <<<"$SCHEME"
+          grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' <<<"$SCHEME"
+          (cd dist && sha256sum "DKgym-${VER}.apk" | tee "DKgym-${VER}.apk.sha256")
+          echo "version=$VER" >> "$GITHUB_ENV"
+          node scripts/android/check-apk-media.mjs "$OUT"
+          # The label and the package id the phone installs.
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)
+          CODE=$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' frontend/android/app/build.gradle)
+          DUMP=$("$AAPT" dump badging "$OUT")
+          grep -q "package: name='dev.fork.opengym.deepseek'" <<<"$DUMP"
+          grep -q "versionCode='${CODE}'" <<<"$DUMP"
+          grep -q "versionName='${VER}'" <<<"$DUMP"
+          grep -q "application-label:'openGym (DeepSeek)'" <<<"$DUMP"
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v${version}"
+          NOTES="${RUNNER_TEMP}/release-notes.md"
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs"
+            const ver = process.env.version
+            const md = readFileSync("CHANGELOG.md", "utf8")
+            const marker = "## v" + ver
+            const start = md.indexOf(marker)
+            const boundary = start >= 0 && !/[0-9.]/.test(md[start + marker.length] || "\n")
+            let text = "openGym (DeepSeek) " + ver + "\n"
+            if (boundary) {
+              const rest = md.slice(start)
+              const next = rest.indexOf("\n## ", 1)
+              text = (next < 0 ? rest : rest.slice(0, next)).trim() + "\n"
+            }
+            writeFileSync(process.argv[1], text)
+          ' "$NOTES"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/DKgym-"${version}".apk dist/DKgym-"${version}".apk.sha256 --clobber
+            gh release edit "$TAG" --notes-file "$NOTES"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            gh release create "$TAG" dist/DKgym-"${version}".apk dist/DKgym-"${version}".apk.sha256 --title "$TAG" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" dist/DKgym-"${version}".apk dist/DKgym-"${version}".apk.sha256 --target "$GITHUB_SHA" --title "$TAG" --notes-file "$NOTES"
+          fi
+          {
+            echo "### DKgym ${version}"
+            echo
+            echo "- APK: \`DKgym-${version}.apk\`"
+            echo "- SHA-256: \`$(awk "{print \$1}" dist/DKgym-"${version}".apk.sha256)\`"
+            echo "- Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          } >> "$GITHUB_STEP_SUMMARY"
