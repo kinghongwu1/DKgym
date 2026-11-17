@@ -6,7 +6,7 @@ import React, { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createRoot } from 'react-dom/client'
 
-import { EXIDX, registerCustom } from './lib/exercises.js'
+import { EXIDX, registerCustom, gifSrc, imgSrc, figureOf } from './lib/exercises.js'
 import { DEF, useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { _setLangState } from './lib/i18n-core.js'
@@ -101,5 +101,18 @@ describe('the exercise detail sheet', () => {
   it('lets a long name wrap instead of pushing the star out', () => {
     exerciseDetailSheet(EXIDX['0025'])
     expect(renderTop().querySelector('h3').classList.contains('exdetail-name')).toBe(true)
+  })
+
+  it('points the demonstration at the bundled exercise-media still and clip', () => {
+    const bench = EXIDX['0025']
+    const figure = figureOf(useStore.getState().S)
+    exerciseDetailSheet(bench)
+    const host = renderTop()
+    const el = host.querySelector('.exmedia video, .exmedia img')
+    expect(el).toBeTruthy()
+    const src = el.getAttribute('src')
+    expect([gifSrc(bench, figure), imgSrc(bench, figure)]).toContain(src)
+    expect(src.startsWith('exercise-media/')).toBe(true)
+    expect(bench.gif.endsWith('.mp4') || bench.img.endsWith('.webp')).toBe(true)
   })
 })

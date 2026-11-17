@@ -1,3 +1,6 @@
+# DISABLED on this fork. The workflow rules below are `when: never`, so this file
+# does not run and does not push images to registry.gitlab.com/duartesantos8/opengym.
+#
 # openGym — GitLab CI/CD
 #
 # GitHub is openGym's home and its Actions (.github/) test and publish it; GitLab is a mirror
@@ -73,14 +76,11 @@ default:
       - data_integrity_failure
       - unknown_failure
 
-# Branch pipeline *or* MR pipeline, never both for the same commit.
+# This fork does not publish to GitLab or to registry.gitlab.com/duartesantos8/opengym.
+# The pipeline is off so a mirror push cannot build images or a release under upstream's name.
 workflow:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
-      when: never
-    - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH
+    - when: never
 
 # ------------------------------------------------------------------------- templates
 
